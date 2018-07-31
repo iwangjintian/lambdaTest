@@ -2,5 +2,7 @@ version: 0.1
 phases:
   install:
     commands:
+      - cp ApiDeviceDataLambda/index.js index.js
       - npm install querystring
-      - aws s3 cp index.js s3://jesse-test-10086/
+      - zip -r  ApiDeviceDataLambda.zip index.js node_modules
+      - aws s3 cp ApiDeviceDataLambda.zip s3://jesse-test-10086/
