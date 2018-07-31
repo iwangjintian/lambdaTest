@@ -1,0 +1,7 @@
+version: 0.1
+phases:
+  install:
+    commands:
+      - cd ApiDeviceDataLambda
+      - npm install querystring
+      - aws s3 cp index.js s3://jesse-test-10086/

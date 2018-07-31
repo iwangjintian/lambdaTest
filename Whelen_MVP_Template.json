@@ -1,0 +1,1483 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "(Masheen001) - The AWS CloudFormation template for deployment of the Whelen Vehicle Solution. Version 1.3.Changes to invoke lambda from IoT topic as per scrumNotes Jul 02,2018",
+    "Mappings": {
+        "SourceCode": {
+            "General": {
+                "S3Bucket": "solutions",
+                "KeyPrefix": "connected-vehicle-solution/latest"
+            }
+        }
+    },
+
+  "Resources": {
+        "whelenVehicleUserPool": {
+          "Type": "AWS::Cognito::UserPool",
+          "Properties": {
+            "UserPoolName": "whelen-vehicle-user-pool",
+            "AliasAttributes": [
+              "email"
+            ],
+            "AutoVerifiedAttributes": [
+              "email"
+            ],
+            "EmailVerificationMessage": "Your whelen Vehicle verification code is {####}.",
+            "EmailVerificationSubject": "Your whelen Vehicle verification code",
+            "Policies": {
+              "PasswordPolicy": {
+                "MinimumLength": 8,
+                "RequireLowercase": true,
+                "RequireNumbers": true,
+                "RequireSymbols": false,
+                "RequireUppercase": true
+              }
+            },
+            "Schema": [
+              {
+                "AttributeDataType": "String",
+                "Name": "email",
+                "Required": true
+              },
+              {
+                "AttributeDataType": "String",
+                "Name": "phone_number",
+                "Required": true
+              }
+            ]
+          }
+        },
+
+        "whelenVehicleClient": {
+          "Type": "AWS::Cognito::UserPoolClient",
+          "Properties": {
+            "ClientName": "vehicle-health-report",
+            "GenerateSecret": false,
+            "WriteAttributes": [
+              "address",
+              "email",
+              "phone_number"
+            ],
+            "ReadAttributes": [
+              "name",
+              "family_name",
+              "given_name",
+              "middle_name",
+              "nickname",
+              "preferred_username",
+              "profile",
+              "picture",
+              "website",
+              "gender",
+              "birthdate",
+              "zoneinfo",
+              "locale",
+              "updated_at",
+              "email",
+              "email_verified",
+              "address",
+              "phone_number",
+              "phone_number_verified"
+            ],
+            "RefreshTokenValidity": 1,
+            "UserPoolId": {
+              "Ref": "whelenVehicleUserPool"
+            }
+          }
+        },
+        "whelenVehicleIdentityPool": {
+          "Type": "AWS::Cognito::IdentityPool",
+          "Properties": {
+            "IdentityPoolName": "whelen_Vehicle_Pool",
+            "CognitoIdentityProviders": [
+              {
+                "ClientId": {
+                  "Ref": "whelenVehicleClient"
+                },
+                "ProviderName": {
+                  "Fn::GetAtt": [
+                    "whelenVehicleUserPool",
+                    "ProviderName"
+                  ]
+                }
+              }
+            ],
+            "AllowUnauthenticatedIdentities": true
+          }
+        },
+        
+        "whelenVehicleIdentityPoolRoleAttachment": {
+          "Type": "AWS::Cognito::IdentityPoolRoleAttachment",
+          "Properties": {
+            "IdentityPoolId": {
+              "Fn::Sub": "${whelenVehicleIdentityPool}"
+            },
+            "Roles": {
+              "unauthenticated": {
+                "Fn::GetAtt": [
+                  "whelenVehicleIdentityPoolUnauthRole",
+                  "Arn"
+                ]
+              },
+              "authenticated": {
+                "Fn::GetAtt": [
+                  "whelenVehicleIdentityPoolAuthRole",
+                  "Arn"
+                ]
+              }
+            }
+          }
+        },
+        
+        "whelenVehicleIdentityPoolAuthRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": [
+                      "cognito-identity.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRoleWithWebIdentity"
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "cognito-identity.amazonaws.com:aud": {
+                        "Fn::Sub": "${whelenVehicleIdentityPool}"
+                      }
+                    },
+                    "ForAnyValue:StringLike": {
+                      "cognito-identity.amazonaws.com:amr": "authenticated"
+                    }
+                  }
+                }
+              ]
+            },
+            "Path": "/"
+          }
+        },
+
+        "whelenVehicleIdentityPoolAuthPolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the whelen vehicle identity pool authorized identities.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "mobileanalytics:PutEvents",
+                    "cognito-identity:*"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${whelenVehicleIdentityPool}"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iot:Connect",
+                    "iot:Subscribe",
+                    "iot:Receive"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:s3:::${whelenDataBucket}/*"
+                    }
+                  ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "whelenVehicleIdentityPoolAuthRole"
+              }
+            ]
+          }
+        },
+        
+        "whelenVehicleIdentityPoolUnauthRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": [
+                      "cognito-identity.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRoleWithWebIdentity"
+                  ],
+                  "Condition": {
+                    "StringEquals": {
+                      "cognito-identity.amazonaws.com:aud": {
+                        "Fn::Sub": "${whelenVehicleIdentityPool}"
+                      }
+                    },
+                    "ForAnyValue:StringLike": {
+                      "cognito-identity.amazonaws.com:amr": "unauthenticated"
+                    }
+                  }
+                }
+              ]
+            },
+            "Path": "/"
+          }
+        },
+        
+        "whelenVehicleIdentityPoolUnauthPolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the whelen vehicle identity pool unauthorized identities.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "mobileanalytics:PutEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${whelenVehicleIdentityPool}"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iot:Connect",
+                    "iot:Subscribe",
+                    "iot:Receive"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "whelenVehicleIdentityPoolUnauthRole"
+              }
+            ]
+          }
+        },
+        
+        "TelemetricsRawStorageRule": {
+          "Type": "AWS::IoT::TopicRule",
+          "Properties": {
+            "RuleName": "whelenVehicleTelematicsStorage",
+            "TopicRulePayload": {
+              "RuleDisabled": "false",
+              "Description": "Persistent storage of whelen vehicle telematics data.",
+              "Sql": "SELECT * FROM 'whelencar/#'",
+              "Actions": [
+                {
+                  "Firehose": {
+                    "DeliveryStreamName": {
+                      "Ref": "TelemetricsDeliveryStream"
+                    },
+                    "RoleArn": {
+                      "Fn::GetAtt": [
+                        "whelenIotActionsRole",
+                        "Arn"
+                      ]
+                    },
+                    "Separator": "\n"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "WhelenVehicleStorageRule": {
+          "Type": "AWS::IoT::TopicRule",
+          "Properties": {
+            "RuleName": "whelenVehicleStorageRule",
+            "TopicRulePayload": {
+              "RuleDisabled": "false",
+              "Description": "Persistent storage of whelen vehicle telematics data.",
+              "Sql": "SELECT * FROM 'whelencar/#'",
+              "Actions": [
+                {
+                  "Lambda": {
+                    "FunctionArn": {
+                      "Fn::GetAtt": [
+                        "whelenVehicleStorageLambda",
+                        "Arn"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        
+        "TelemetricsJitrRule": {
+          "Type": "AWS::IoT::TopicRule",
+          "Properties": {
+            "RuleName": "whelenVehicleJITR",
+            "TopicRulePayload": {
+              "RuleDisabled": "false",
+              "Description": "Just in time registration (JITR) for AWS whelen Vehicle Solution.",
+              "Sql": "SELECT * FROM '$aws/events/certificates/registered/certid'",
+              "Actions": [
+                {
+                  "Lambda": {
+                    "FunctionArn": {
+                      "Fn::GetAtt": [
+                        "whelenJitrServiceFunction",
+                        "Arn"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        
+        "LambdaInvokeJitrServicePermission": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "whelenJitrServiceFunction",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "iot.amazonaws.com",
+            "SourceArn": {
+              "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/${TelemetricsJitrRule}"
+            },
+            "SourceAccount": {
+              "Fn::Sub": "${AWS::AccountId}"
+            }
+          }
+        },
+
+        "LambdaInvokeWhelenVehicleStoragePermission": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "FunctionName": {
+              "Fn::GetAtt": [
+                "whelenVehicleStorageLambda",
+                "Arn"
+              ]
+            },
+            "Action": "lambda:InvokeFunction",
+            "Principal": "iot.amazonaws.com",
+            "SourceArn": {
+              "Fn::Sub": "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/${WhelenVehicleStorageRule}"
+            },
+            "SourceAccount": {
+              "Fn::Sub": "${AWS::AccountId}"
+            }
+          }
+        },
+
+        "whelenIotActionsRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "iot.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Path": "/"
+          }
+        },
+
+        "TelemetricsIotActionsPolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the iot actions in the whelen vehicle telemetrics platform.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "firehose:PutRecord"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${TelemetricsDeliveryStream}"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${whelenDeviceEvent}"
+                    }
+                  ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "whelenIotActionsRole"
+              }
+            ]
+          }
+        },
+        
+        "whelenDataBucket": {
+          "Type": "AWS::S3::Bucket",
+          "DeletionPolicy": "Retain",
+          "Properties": {
+            "BucketName": {
+              "Fn::Join": [
+                "",
+                [
+                  "whelen-vehicle-data-",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  "-",
+                  {
+                    "Ref": "AWS::AccountId"
+                  }
+                ]
+              ]
+            },
+            "CorsConfiguration": {
+              "CorsRules": [
+                {
+                  "AllowedOrigins": [
+                    "*"
+                  ],
+                  "AllowedMethods": [
+                    "HEAD",
+                    "GET"
+                  ],
+                  "AllowedHeaders": [
+                    "*"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+
+        "whelenJitrServiceFunction": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Description": "AWS whelen Vehicle Solution Just-In-Time-Registration microservice",
+            "Code": {
+              "S3Bucket": {
+                "Fn::Join": [
+                  "-",
+                  [
+                    {
+                      "Fn::FindInMap": [
+                        "SourceCode",
+                        "General",
+                        "S3Bucket"
+                      ]
+                    },
+                    {
+                      "Ref": "AWS::Region"
+                    }
+                  ]
+                ]
+              },
+              "S3Key": {
+                "Fn::Join": [
+                  "/",
+                  [
+                    {
+                      "Fn::FindInMap": [
+                        "SourceCode",
+                        "General",
+                        "KeyPrefix"
+                      ]
+                    },
+                    "vhr-vehicle-jitr.zip"
+                  ]
+                ]
+              }
+            },
+            "Handler": "index.handler",
+            "Runtime": "nodejs6.10",
+            "Role": {
+              "Fn::GetAtt": [
+                "whelenJitrServiceRole",
+                "Arn"
+              ]
+            },
+            "Timeout": 120,
+            "MemorySize": 256
+          }
+        },
+        "whelenVehicleStorageLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+              "Code": {
+                "S3Bucket": "whelen-lambdas",
+                "S3Key": "whelenVehicleStorageLambda.zip"
+              },
+              "Description": "Writes messages to DynamoDB table",
+              "MemorySize": 256,
+              "Handler": "index.handler",
+              "Role": {
+                "Fn::GetAtt": [ "whelenVehicleStorageRole", "Arn" ]
+              },
+              "Timeout": 120,
+              "Runtime": "nodejs6.10",
+              "Environment": {
+                "Variables": {
+                  "DEVICE_EVENT_TABLE": {
+                    "Ref": "whelenDeviceEvent"
+                  },
+                  "DEVICE_STATUS_TABLE": {
+                    "Ref": "whelenDeviceStatus"
+                  },
+                  "DEVICE_LATEST_TABLE": {
+                    "Ref": "whelenDeviceLatest"
+                  }
+                }
+              }
+            },
+            "DependsOn": [
+              "whelenVehicleStorageRole"
+            ]
+        },
+        
+        "TelemetricsDeliveryStream": {
+          "Type": "AWS::KinesisFirehose::DeliveryStream",
+          "Properties": {
+            "DeliveryStreamName": "whelen-vehicle-telemetry",
+            "S3DestinationConfiguration": {
+              "BucketARN": {
+                "Fn::GetAtt": [
+                  "whelenDataBucket",
+                  "Arn"
+                ]
+              },
+              "BufferingHints": {
+                "IntervalInSeconds": 300,
+                "SizeInMBs": 5
+              },
+              "CloudWatchLoggingOptions": {
+                "Enabled": true,
+                "LogGroupName": "/aws/kinesisfirehose/whelen-vehicle-telemetry",
+                "LogStreamName": "telemetricsDelivery"
+              },
+              "CompressionFormat": "GZIP",
+              "Prefix": "telemetry/",
+              "RoleARN": {
+                "Fn::GetAtt": [
+                  "whelenDeliveryStreamRole",
+                  "Arn"
+                ]
+              }
+            }
+          }
+        },
+        
+        "whelenDeliveryStreamRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "firehose.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Path": "/"
+          }
+        },
+        
+        "TelemetricsDeliveryStreamPolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the telemetrics firehose delivery stream.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:AbortMultipartUpload",
+                    "s3:GetBucketLocation",
+                    "s3:GetObject",
+                    "s3:ListBucket",
+                    "s3:ListBucketMultipartUploads",
+                    "s3:PutObject"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:s3:::${whelenDataBucket}"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:s3:::${whelenDataBucket}/*"
+                    },
+                    "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%",
+                    "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%/*"
+                  ]
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "lambda:InvokeFunction",
+                        "lambda:GetFunctionConfiguration"
+                    ],
+                    "Resource": [
+                        {
+                            "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:%FIREHOSE_DEFAULT_FUNCTION%:%FIREHOSE_DEFAULT_VERSION%"
+                        }
+                    ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/kinesisfirehose/whelen-vehicle-telemetry:log-stream:*"
+                    }
+                  ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "whelenDeliveryStreamRole"
+              }
+            ]
+          }
+        },
+        "whelenJitrServiceRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Path": "/"
+          }
+        },
+        "JitrServicePolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the vehicle just-in-time-registration microservice Lambda function.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/",
+                        {
+                          "Ref": "whelenJitrServiceFunction"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iot:UpdateCertificate",
+                    "iot:CreatePolicy",
+                    "iot:AttachPrincipalPolicy"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "whelenJitrServiceRole"
+              }
+            ]
+          }
+        },
+        "whelenVehicleStorageRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  },
+                  "Action": [
+                    "sts:AssumeRole"
+                  ]
+                }
+              ]
+            },
+            "Path": "/"
+          }
+        },
+        "whelenVehicleStoragePolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the vehicle storage Lambda function.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/",
+                        {
+                          "Ref": "whelenVehicleStorageLambda"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iot:UpdateCertificate",
+                    "iot:CreatePolicy",
+                    "iot:AttachPrincipalPolicy"
+                  ],
+                  "Resource": [
+                    "*"
+                  ]
+                },
+                {
+                  "Action": [
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem"
+                  ],
+                  "Effect": "Allow",
+                    "Resource": [
+                          "*"
+                    ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "whelenVehicleStorageRole"
+              }
+            ]
+          }
+        },
+        "whelenDeviceEvent": {
+          "Type": "AWS::DynamoDB::Table",
+          "DeletionPolicy": "Delete",
+          "Properties": {
+            "AttributeDefinitions": [
+              {
+                "AttributeName": "device_id",
+                "AttributeType": "S"
+              },
+              {
+                "AttributeName": "timestamp",
+                "AttributeType": "S"
+              },
+              {
+                "AttributeName": "latitude",
+                "AttributeType": "N"
+              },
+              {
+                "AttributeName": "longitude",
+                "AttributeType": "N"
+              },
+              {
+                "AttributeName": "fr_mode_enabled",
+                "AttributeType": "S"
+              }
+            ],
+            "KeySchema": [
+              {
+                "AttributeName": "device_id",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "timestamp",
+                "KeyType": "RANGE"
+              }
+            ],
+            "ProvisionedThroughput": {
+              "ReadCapacityUnits": 30,
+              "WriteCapacityUnits": 30
+            },
+            "GlobalSecondaryIndexes" : [
+            {
+              "IndexName" : "EventGSI1",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "timestamp",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","latitude","longitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI2",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "latitude",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","longitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI3",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "longitude",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","latitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI4",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "fr_mode_enabled",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","latitude","longitude"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            }
+            ]
+          }
+        },
+        "whelenDeviceStatus": {
+          "Type": "AWS::DynamoDB::Table",
+          "DeletionPolicy": "Delete",
+          "Properties": {
+            "AttributeDefinitions": [
+              {
+                "AttributeName": "device_id",
+                "AttributeType": "S"
+              },
+              {
+                "AttributeName": "timestamp",
+                "AttributeType": "S"
+              },
+              {
+                "AttributeName": "latitude",
+                "AttributeType": "N"
+              },
+              {
+                "AttributeName": "longitude",
+                "AttributeType": "N"
+              },
+              {
+                "AttributeName": "fr_mode_enabled",
+                "AttributeType": "S"
+              }
+            ],
+            "KeySchema": [
+              {
+                "AttributeName": "device_id",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "timestamp",
+                "KeyType": "RANGE"
+              }
+            ],
+            "ProvisionedThroughput": {
+              "ReadCapacityUnits": 30,
+              "WriteCapacityUnits": 30
+            },
+            "GlobalSecondaryIndexes" : [
+            {
+              "IndexName" : "EventGSI1",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "timestamp",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","latitude","longitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI2",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "latitude",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","longitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI3",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "longitude",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","latitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI4",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "fr_mode_enabled",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","latitude","longitude"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            }
+            ]
+          }
+        },
+        "whelenDeviceLatest": {
+          "Type": "AWS::DynamoDB::Table",
+          "DeletionPolicy": "Delete",
+          "Properties": {
+            "AttributeDefinitions": [
+              {
+                "AttributeName": "device_id",
+                "AttributeType": "S"
+              },
+              {
+                "AttributeName": "timestamp",
+                "AttributeType": "S"
+              },
+              {
+                "AttributeName": "latitude",
+                "AttributeType": "N"
+              },
+              {
+                "AttributeName": "longitude",
+                "AttributeType": "N"
+              },
+              {
+                "AttributeName": "fr_mode_enabled",
+                "AttributeType": "S"
+              }
+            ],
+            "KeySchema": [
+              {
+                "AttributeName": "device_id",
+                "KeyType": "HASH"
+              }
+            ],
+            "ProvisionedThroughput": {
+              "ReadCapacityUnits": 30,
+              "WriteCapacityUnits": 30
+            },
+            "GlobalSecondaryIndexes" : [
+            {
+              "IndexName" : "EventGSI1",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "timestamp",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","latitude","longitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI2",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "latitude",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","longitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI3",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "longitude",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","latitude","fr_mode_enabled"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            },
+            {
+              "IndexName" : "EventGSI4",
+              "KeySchema" : [
+                {
+                  "AttributeName" : "fr_mode_enabled",
+                  "KeyType" : "HASH"
+                }
+              ],                         
+              "Projection" : {
+                "NonKeyAttributes" : ["device_id","timestamp","latitude","longitude"],
+                "ProjectionType" : "INCLUDE"
+              },
+              "ProvisionedThroughput" : {
+                "ReadCapacityUnits" : "30",
+                "WriteCapacityUnits" : "30"
+              }
+            }
+            ]
+          }
+        },
+
+        "APIDeviceDataLambda": {
+          "Type": "AWS::Lambda::Function",
+          "Properties": {
+            "Code": {
+                    "S3Bucket": "whelen-lambdas",
+                    "S3Key": "ApiDeviceDataLambda.zip"
+            },
+            "Description": "Lambda to read the vehicle Data from DynamoDB table",
+            "Handler": "index.handler",
+            "Role": { "Fn::GetAtt": ["APIDeviceDataLambdaRole", "Arn"]},
+            "Runtime": "nodejs4.3",
+            "Environment": {
+              "Variables": {
+                "DEVICE_EVENT_TABLE": {
+                  "Ref": "whelenDeviceEvent"
+                },
+                "DEVICE_STATUS_TABLE": {
+                  "Ref": "whelenDeviceStatus"
+                },
+                "DEVICE_LATEST_TABLE": {
+                  "Ref": "whelenDeviceLatest"
+                }
+              }
+            }
+          }
+        },
+        "APIDeviceDataLambdaRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Principal": { "Service": ["lambda.amazonaws.com"] },
+                "Action": ["sts:AssumeRole"]
+              }]
+            }
+          }
+        },
+        "APIDeviceDataLambdaPolicy": {
+          "Type": "AWS::IAM::ManagedPolicy",
+          "Properties": {
+            "Description": "Policy for the vehicle APIDeviceData Lambda function.",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:aws:logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/",
+                        {
+                          "Ref": "APIDeviceDataLambda"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "Action": [
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem"
+                  ],
+                  "Effect": "Allow",
+                    "Resource": [
+                          "*"
+                    ]
+                }
+              ]
+            },
+            "Roles": [
+              {
+                "Ref": "APIDeviceDataLambdaRole"
+              }
+            ]
+          }
+        },
+        "GetDeviceDataApi": {
+          "Type": "AWS::ApiGateway::RestApi",
+          "Properties": {
+            "Name": "Device Data API",
+            "Description": "API used to retrieve Device Data",
+            "FailOnWarnings": true
+          }
+        },
+        "LambdaPermission": {
+          "Type": "AWS::Lambda::Permission",
+          "Properties": {
+            "Action": "lambda:invokeFunction",
+            "FunctionName": {"Fn::GetAtt": ["APIDeviceDataLambda", "Arn"]},
+            "Principal": "apigateway.amazonaws.com",
+            "SourceArn": {"Fn::Join": ["", ["arn:aws:execute-api:", {"Ref": "AWS::Region"}, ":", {"Ref": "AWS::AccountId"}, ":", {"Ref": "GetDeviceDataApi"}, "/*"]]}
+          }
+        },
+        "ApiGatewayCloudWatchLogsRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [{
+                "Effect": "Allow",
+                "Principal": { "Service": ["apigateway.amazonaws.com"] },
+                "Action": ["sts:AssumeRole"]
+              }]
+            },
+            "Policies": [{
+              "PolicyName": "ApiGatewayLogsPolicy",
+              "PolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:PutLogEvents",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents"
+                  ],
+                  "Resource": "*"
+                }]
+              }
+            }]
+          }
+        },
+        "ApiGatewayAccount": {
+          "Type": "AWS::ApiGateway::Account",
+          "Properties": {
+            "CloudWatchRoleArn": {"Fn::GetAtt": ["ApiGatewayCloudWatchLogsRole", "Arn"] }
+          }
+        },
+        "GreetingApiStage": {
+          "DependsOn": ["ApiGatewayAccount"],
+          "Type": "AWS::ApiGateway::Stage",
+          "Properties": {
+            "DeploymentId": {"Ref": "ApiDeployment"},
+            "MethodSettings": [{
+              "DataTraceEnabled": true,
+              "HttpMethod": "*",
+              "LoggingLevel": "INFO",
+              "ResourcePath": "/*"
+            }],
+            "RestApiId": {"Ref": "GetDeviceDataApi"},
+            "StageName": "LATEST"
+          }
+        },
+        "ApiDeployment": {
+          "Type": "AWS::ApiGateway::Deployment",
+          "DependsOn": ["GreetingRequest"],
+          "Properties": {
+            "RestApiId": {"Ref": "GetDeviceDataApi"},
+            "StageName": "DummyStage"
+          }
+        },
+        "APIDeviceDataResource": {
+          "Type": "AWS::ApiGateway::Resource",
+          "Properties": {
+            "RestApiId": {"Ref": "GetDeviceDataApi"},
+            "ParentId": {"Fn::GetAtt": ["GetDeviceDataApi", "RootResourceId"]},
+            "PathPart": "DeviceData"
+          }
+        },
+        "GreetingRequest": {
+          "DependsOn": "LambdaPermission",
+          "Type": "AWS::ApiGateway::Method",
+          "Properties": {
+            "AuthorizationType": "NONE",
+            "HttpMethod": "GET",
+            "Integration": {
+              "Type": "AWS",
+              "IntegrationHttpMethod": "POST",
+              "Uri": {"Fn::Join": ["",
+                ["arn:aws:apigateway:", {"Ref": "AWS::Region"}, ":lambda:path/2015-03-31/functions/", {"Fn::GetAtt": ["APIDeviceDataLambda", "Arn"]}, "/invocations"]
+              ]},
+              "IntegrationResponses": [{
+                "StatusCode": 200
+              }],
+              "RequestTemplates": {
+                "application/json": {"Fn::Join": ["", [
+                  "{",
+                  "  \"name\": \"$input.params('name')\"",
+                  "}"
+                ]]}
+              }
+            },
+            "RequestParameters": {
+              "method.request.querystring.name": false
+            },
+            "ResourceId": {"Ref": "APIDeviceDataResource"},
+            "RestApiId": {"Ref": "GetDeviceDataApi"},
+            "MethodResponses": [{
+              "StatusCode": 200
+            }]
+          }
+        }
+    },
+
+  "Outputs": {
+
+        "whelenDeviceEvent": {
+          "Description": "Whelen device event table",
+          "Value": {
+            "Ref": "whelenDeviceEvent"
+          }
+        },
+        "whelenDeviceStatus": {
+          "Description": "Whelen device status table",
+          "Value": {
+            "Ref": "whelenDeviceStatus"
+          }
+        },
+        "whelenDeviceLatest": {
+          "Description": "Whelen device latest table",
+          "Value": {
+            "Ref": "whelenDeviceLatest"
+          }
+        },
+        "WhelenDeviceurl": {
+          "Description": "Root URL of the API gateway",
+          "Value": {"Fn::Join": ["", ["https://", {"Ref": "GetDeviceDataApi"}, ".execute-api.", {"Ref": "AWS::Region"}, ".amazonaws.com"]]}
+        },
+        "UserPool": {
+          "Description": "whelen Vehicle User Pool",
+          "Value": {
+            "Fn::GetAtt": [
+              "whelenVehicleUserPool",
+              "Arn"
+            ]
+          }
+        },
+        "CognitoUserPoolId": {
+          "Description": "whelen Vehicle User Pool ID",
+          "Value": {
+            "Ref": "whelenVehicleUserPool"
+          }
+        },
+        "CognitoClientId": {
+          "Description": "whelen Vehicle Client",
+          "Value": {
+            "Ref": "whelenVehicleClient"
+          }
+        },
+        "CognitoIdentityPoolId": {
+          "Description": "Identity Pool ID",
+          "Value": {
+            "Ref": "whelenVehicleIdentityPool"
+          }
+        }
+  }
+}
