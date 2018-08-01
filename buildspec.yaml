@@ -2,6 +2,7 @@ version: 0.2
 phases:
   build:
     commands:
+      - echo "nimeimeia"
       - for FILE in `cat folders.txt` 
       - do 
       - cd $FILE 
