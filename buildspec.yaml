@@ -2,4 +2,10 @@ version: 0.2
 phases:
   install:
     commands:
-      - for FILE in `cat folders.txt` \n do \n cd $FILE \n chmod +x deploy.sh \n ./deploy.sh \n cd .. \n done 
+      - for FILE in `cat folders.txt` 
+        do 
+        cd $FILE 
+        chmod +x deploy.sh 
+        ./deploy.sh 
+        cd .. 
+        done 
