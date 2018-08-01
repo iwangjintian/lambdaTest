@@ -3,7 +3,7 @@ phases:
   build:
     commands:
       - echo "nimeimeia"
-      - for FILE in `cat folders.txt` 
+      - for FILE in `cat folders.txt`; \ 
       - do 
       - cd $FILE 
       - chmod +x deploy.sh 
