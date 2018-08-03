@@ -1,4 +1,4 @@
-#git show --name-status | tee output.txt
+git show --name-status | tee output.txt
 count=0
 while read LINE
 do
