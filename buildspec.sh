@@ -6,9 +6,9 @@ counter=$((counter+1))
 if [ "$counter" -gt 6 ]
 then
   filelocation=$LINE
-  folders=${filelocation[1]}
+  folders=$filelocation[1]
     #echo "${folders}"
-    if [[ $folders = *"/"* ]]; then
+    if [ $folders = *"/"* ]; then
       echo "${folders%%/*}" >> folders.txt
   	fi
 fi
