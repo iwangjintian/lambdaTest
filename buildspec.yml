@@ -2,6 +2,7 @@ version: 0.2
 phases:
   build:
     commands:
+      - git pull
       - git log --name-status HEAD^..HEAD | tee output.txt
       - chmod +x buildspec.sh
       - ./buildspec.sh
