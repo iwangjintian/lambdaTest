@@ -3,7 +3,7 @@ count=0
 while read LINE
 do
 counter=$((counter+1))
-if [[ "$counter" -gt 6 ]] 
+if [ "$counter" -gt 6 ]
 then
   filelocation=$LINE
   folders=${filelocation[1]}
