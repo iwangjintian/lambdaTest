@@ -2,5 +2,5 @@ version: 0.2
 phases:
   build:
     commands:
-      - chomd +x buildspec.sh
+      - chmod +x buildspec.sh
       - ./buildspec.sh
