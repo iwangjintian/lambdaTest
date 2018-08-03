@@ -10,7 +10,7 @@ then
     #echo "${folders}"
     if [[ $folders = *"/"* ]]; then
       echo "${folders%%/*}" >> folders.txt
-  fi
+  	fi
 fi
 done < output.txt
 if [ -f folders.txt ]; 
