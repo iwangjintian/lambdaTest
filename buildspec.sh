@@ -1,3 +1,4 @@
+#!/bin/bash
 git show --name-status | tee output.txt
 count=0
 while read LINE
