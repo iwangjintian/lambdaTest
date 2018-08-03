@@ -17,6 +17,8 @@ fi
 done < output.txt
 if [ -f folders.txt ]
 then
+  cat folders.txt
   sort -u folders.txt >> unique_folders.txt
+  cat unique_folders.txt
   for FILE in `cat unique_folders.txt`;do cd $FILE;chmod +x deploy.sh;./deploy.sh;cd ..;done
 fi
