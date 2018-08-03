@@ -1,0 +1,11 @@
+commit 7701c631cde39517796b77973ce12798b1759b66
+Author: iwangjintian <597493748@qq.com>
+Date:   Thu Aug 2 13:56:46 2018 -0400
+
+    update
+
+A	ApiDeviceData/deploy copy.sh
+A	ApiDeviceDataLambda/deploy copy.sh
+A	ApiDeviceDataLambda/deploy copy.sh
+A	ApiDeviceDataLambda/deploy copy.sh
+R100	buildspec.yaml	buildspec.yml
