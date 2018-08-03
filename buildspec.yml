@@ -2,5 +2,5 @@ version: 0.2
 phases:
   build:
     commands:
-      - git branch
-      - for FILE in `cat folders.txt`;do cd $FILE;chmod +x deploy.sh;./deploy.sh;cd ..;done
+      - chomd +x buildspec.sh
+      - ./buildspec.sh

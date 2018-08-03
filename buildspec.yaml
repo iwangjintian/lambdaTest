@@ -1,6 +1,0 @@
-version: 0.2
-phases:
-  build:
-    commands:
-      - chomd +z buildspec.sh
-      - ./buildspec.sh
