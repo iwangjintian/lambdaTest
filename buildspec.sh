@@ -8,7 +8,8 @@ then
   filelocation=$LINE
   folders=$filelocation[1]
     #echo "${folders}"
-    if [ "$folders" = *"/"* ] then
+    if [ "$folders" = *"/"* ] 
+    then
       echo "${folders%%/*}" >> folders.txt
   	fi
 fi
