@@ -1,0 +1,7 @@
+commit 8f64ca473730d739976509611a8ca8d38588bd6f
+Author: iwangjintian <597493748@qq.com>
+Date:   Fri Aug 3 12:14:59 2018 -0400
+
+    update
+
+M	buildspec.sh

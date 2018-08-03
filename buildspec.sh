@@ -5,7 +5,7 @@ do
 counter=$((counter+1))
 if [[ "$counter" -gt 6 ]] 
 then
-  filelocation=($LINE)
+  filelocation=$LINE
   folders=${filelocation[1]}
     #echo "${folders}"
     if [[ $folders = *"/"* ]]; then
