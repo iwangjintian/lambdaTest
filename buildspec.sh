@@ -3,7 +3,7 @@ count=0
 while read LINE
 do
 counter=$((counter+1))
-if [[ "$counter" -gt 6 ]]; 
+if [[ "$counter" -gt 6 ]] 
 then
   filelocation=($LINE)
   folders=${filelocation[1]}
@@ -13,7 +13,7 @@ then
   	fi
 fi
 done < output.txt
-if [ -f folders.txt ]; 
+if [ -f folders.txt ]
 then
   sort -u folders.txt >> unique_folders.txt
   for FILE in `cat unique_folders.txt`;do cd $FILE;chmod +x deploy.sh;./deploy.sh;cd ..;done
