@@ -1,11 +1,13 @@
-commit 7701c631cde39517796b77973ce12798b1759b66
+commit 15a06a5c12b4a8ffff1446d57efb7b123ddf0728
 Author: iwangjintian <597493748@qq.com>
-Date:   Thu Aug 2 13:56:46 2018 -0400
+Date:   Fri Aug 3 10:39:54 2018 -0400
 
     update
 
-A	ApiDeviceData/deploy copy.sh
-A	ApiDeviceDataLambda/deploy copy.sh
-A	ApiDeviceDataLambda/deploy copy.sh
-A	ApiDeviceDataLambda/deploy copy.sh
-R100	buildspec.yaml	buildspec.yml
+A	buildspec.sh
+A	buildspec.yaml
+M	folders.txt
+A	jesse.sh
+A	output.txt
+A	test
+A	unique_folders.txt

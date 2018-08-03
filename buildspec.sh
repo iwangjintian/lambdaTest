@@ -12,5 +12,8 @@ if [[ "$counter" -gt 6 ]]; then
   fi
 fi
 done < output.txt
-sort -u folders.txt >> unique_folders.txt
-for FILE in `cat unique_folders.txt`;do cd $FILE;chmod +x deploy.sh;./deploy.sh;cd ..;done
+if [ -f folders.txt ]; 
+then
+  sort -u folders.txt >> unique_folders.txt
+  for FILE in `cat unique_folders.txt`;do cd $FILE;chmod +x deploy.sh;./deploy.sh;cd ..;done
+fi

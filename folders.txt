@@ -1,4 +1,0 @@
-ApiDeviceData
-ApiDeviceDataLambda
-ApiDeviceDataLambda
-ApiDeviceDataLambda
