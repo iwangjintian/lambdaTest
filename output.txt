@@ -1,7 +1,0 @@
-commit 3cd5e315d5b8ed625b8101bb1e39b65c394efd9c
-Author: iwangjintian <597493748@qq.com>
-Date:   Fri Aug 3 13:42:29 2018 -0400
-
-    update
-
-M	buildspec.sh
