@@ -1,0 +1,7 @@
+commit a10f0a2a26ff0f7c4720ed1ced0f9e455ae61471
+Author: iwangjintian <597493748@qq.com>
+Date:   Wed Aug 15 17:20:56 2018 -0400
+
+    test nested
+
+M	buildspec.sh
