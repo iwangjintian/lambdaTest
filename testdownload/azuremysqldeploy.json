@@ -291,7 +291,7 @@
           "fileUris": [
             "[parameters('cseBlobNameScript')]"
           ],
-          "commandToExecute": "[concat('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Unrestricted -File \"', variables('cseBlobNameScript'), '\" -MySqlVersion \"', parameters('mySqlVersion'), '\" -MySqlPort \"', parameters('mySqlServicePort'), '\" -MySqlInstallationPackageUri \"', variables('mySqlInstallationZip'), '\" -MySqlAdminUserName \"', parameters('adminUsername'), '\" -MySqlAdminPassword \"', parameters('adminPassword'), '\" -RedistUri \"', parameters('redist'), '\"')]"
+          "commandToExecute": "[concat('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Unrestricted -File \"', variables('cseBlobNameScript'), '\" -MySqlVersion \"', parameters('mySqlVersion'), '\" -MySqlPort \"', parameters('mySqlServicePort'), '\" -MySqlInstallationPackageUri \"', parameters('mySqlInstallationZip'), '\" -MySqlAdminUserName \"', parameters('adminUsername'), '\" -MySqlAdminPassword \"', parameters('adminPassword'), '\" -RedistUri \"', parameters('redist'), '\"')]"
         }
       }
     }
