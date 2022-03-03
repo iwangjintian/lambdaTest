@@ -112,7 +112,8 @@
     "imagePublisher": "MicrosoftWindowsServer",
     "imageOffer": "WindowsServer",
     "dnsNameForPublicIP": "[tolower(parameters('vmName'))]",
-    "OSDiskName": "[concat('osdisk-', parameters('vmName'))]"
+    "OSDiskName": "[concat('osdisk-', parameters('vmName'))]",
+    "cseBlobNameScript": "MySql.Setup.CustomScriptExtension.ps1"
   },
   "resources": [
     {
